@@ -104,7 +104,7 @@ export class GameEngine {
       tilt: 0,
       radius: 22,
       lives: 3,
-      maxLives: 3,
+      maxLives: 5,
       invulnerableTime: 0,
       shieldTime: 0,
       magnetTime: 0,
@@ -126,6 +126,11 @@ export class GameEngine {
   public resize(width: number, height: number) {
     this.width = width;
     this.height = height;
+    // Keep player safely within new canvas bounds on screen resize / rotation
+    this.player.x = Math.max(30, Math.min(this.width - 30, this.player.x));
+    this.player.y = Math.max(60, Math.min(this.height - 40, this.player.y));
+    this.player.targetX = Math.max(30, Math.min(this.width - 30, this.player.targetX));
+    this.player.targetY = Math.max(60, Math.min(this.height - 40, this.player.targetY));
     this.initStars();
   }
 
@@ -213,15 +218,17 @@ export class GameEngine {
     }
   }
 
-  public updatePointerTarget(clientX: number, clientY: number, rect: DOMRect) {
+  public updatePointerTarget(clientX: number, clientY: number, rect: DOMRect, isTouch = false) {
     const scaleX = this.width / rect.width;
     const scaleY = this.height / rect.height;
     const x = (clientX - rect.left) * scaleX;
-    const y = (clientY - rect.top) * scaleY;
+    // On mobile touch screens, offset ship upward so player's finger does not block view of ship
+    const touchOffset = isTouch ? -45 : 0;
+    const y = (clientY - rect.top) * scaleY + touchOffset;
 
-    const marginX = 35;
-    const marginYTop = 60;
-    const marginYBottom = 40;
+    const marginX = 25;
+    const marginYTop = 50;
+    const marginYBottom = 35;
 
     this.player.targetX = Math.max(marginX, Math.min(this.width - marginX, x));
     this.player.targetY = Math.max(marginYTop, Math.min(this.height - marginYBottom, y));
@@ -640,9 +647,10 @@ export class GameEngine {
     });
   }
 
-  // Spawns a flock/squadron of 3 to 5 triangular fighter craft in formation
+  // Spawns a flock/squadron of triangular fighter craft in formation
   private spawnTriangleSquadron() {
-    const squadSize = 3 + Math.floor(Math.random() * 3); // 3, 4, or 5 triangle ships
+    const isLevel1 = this.levelConfig.id === 1;
+    const squadSize = isLevel1 ? 2 + Math.floor(Math.random() * 2) : 3 + Math.floor(Math.random() * 3); // smaller squad in level 1
     const centerX = Math.random() * (this.width - 240) + 120;
     const startY = -40;
     const speed = 90 + Math.random() * 40;
@@ -662,7 +670,7 @@ export class GameEngine {
         hp: 25,
         maxHp: 25,
         radius: 18,
-        shootCooldown: 1.4 + Math.random() * 0.8,
+        shootCooldown: isLevel1 ? 1.8 + Math.random() * 0.8 : 1.4 + Math.random() * 0.8,
         shootTimer: 0.5 + Math.random() * 0.8,
         patternTimer: i * 0.4,
         color: '#ef4444',
@@ -715,13 +723,19 @@ export class GameEngine {
 
       if (e.shootTimer >= e.shootCooldown && e.y > 50 && e.y < this.height * 0.6) {
         e.shootTimer = 0;
-        const dx = this.player.x - e.x;
-        const dy = this.player.y - e.y;
-        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-        const speed = 260;
-        const vx = (dx / dist) * speed;
-        const vy = (dy / dist) * speed;
-        this.spawnProjectile(e.x, e.y + e.radius, vx, vy, 5.5, 1, '#ef4444', 'ENEMY', true);
+        if (e.type === 'SCOUT') {
+          // Red triangle enemies shoot strictly vertically downwards (no horizontal, diagonal, or player targeting)
+          const speed = 260;
+          this.spawnProjectile(e.x, e.y + e.radius, 0, speed, 5.5, 1, '#ef4444', 'ENEMY', true);
+        } else {
+          const dx = this.player.x - e.x;
+          const dy = this.player.y - e.y;
+          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+          const speed = 260;
+          const vx = (dx / dist) * speed;
+          const vy = (dy / dist) * speed;
+          this.spawnProjectile(e.x, e.y + e.radius, vx, vy, 5.5, 1, '#ef4444', 'ENEMY', true);
+        }
       }
 
       if (e.y > this.height + e.radius + 20) {
@@ -820,10 +834,11 @@ export class GameEngine {
     // Projectiles vs Asteroids
     for (let pi = this.projectiles.length - 1; pi >= 0; pi--) {
       const p = this.projectiles[pi];
-      if (p.isEnemy) continue;
+      if (!p || p.isEnemy) continue;
 
       for (let ai = this.asteroids.length - 1; ai >= 0; ai--) {
         const ast = this.asteroids[ai];
+        if (!ast) continue;
         const dx = p.x - ast.x;
         const dy = p.y - ast.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
@@ -849,10 +864,11 @@ export class GameEngine {
     // Projectiles vs Enemies
     for (let pi = this.projectiles.length - 1; pi >= 0; pi--) {
       const p = this.projectiles[pi];
-      if (p.isEnemy) continue;
+      if (!p || p.isEnemy) continue;
 
       for (let ei = this.enemies.length - 1; ei >= 0; ei--) {
         const e = this.enemies[ei];
+        if (!e) continue;
         const dx = p.x - e.x;
         const dy = p.y - e.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
@@ -1000,7 +1016,11 @@ export class GameEngine {
   }
 
   private destroyAsteroid(index: number, ast: Asteroid, scoreBonus = true) {
-    this.asteroids.splice(index, 1);
+    if (!ast) return;
+    const realIndex = this.asteroids.indexOf(ast);
+    if (realIndex !== -1) {
+      this.asteroids.splice(realIndex, 1);
+    }
     soundManager.playAsteroidExplode(ast.type);
     this.spawnExplosion(ast.x, ast.y, ast.color, ast.radius * 0.8);
     this.screenShakeIntensity = Math.min(20, this.screenShakeIntensity + (ast.radius > 30 ? 10 : 5));
@@ -1040,20 +1060,27 @@ export class GameEngine {
   private triggerChainExplosion(cx: number, cy: number, blastRadius: number) {
     soundManager.playBomb();
     this.spawnExplosion(cx, cy, '#ef4444', 35);
-    for (let i = this.asteroids.length - 1; i >= 0; i--) {
-      const target = this.asteroids[i];
+    
+    // Create a snapshot to safely iterate even if chain reactions spawn or destroy asteroids
+    const targets = [...this.asteroids];
+    for (const target of targets) {
+      if (!target || !this.asteroids.includes(target)) continue;
       const dist = Math.hypot(target.x - cx, target.y - cy);
       if (dist < blastRadius + target.radius) {
         target.hp -= 60;
         if (target.hp <= 0) {
-          this.destroyAsteroid(i, target, true);
+          this.destroyAsteroid(-1, target, true);
         }
       }
     }
   }
 
   private destroyEnemy(index: number, e: Enemy, scoreBonus = true) {
-    this.enemies.splice(index, 1);
+    if (!e) return;
+    const realIndex = this.enemies.indexOf(e);
+    if (realIndex !== -1) {
+      this.enemies.splice(realIndex, 1);
+    }
     soundManager.playEnemyExplode();
     this.spawnExplosion(e.x, e.y, e.color, e.radius * 0.9);
 
@@ -1065,7 +1092,9 @@ export class GameEngine {
       this.player.enemiesDestroyed++;
       this.spawnFloatingText(e.x, e.y, `+${totalPts}`, '#f43f5e', 16);
 
-      if (Math.random() < 0.6) {
+      if (Math.random() < 0.25 && this.player.lives < 5) {
+        this.spawnCollectible(e.x, e.y, 'HEALTH');
+      } else if (Math.random() < 0.15) {
         this.spawnCollectible(e.x, e.y, 'POWER_TRIANGLE');
       }
     }
@@ -1090,7 +1119,7 @@ export class GameEngine {
     this.spawnFloatingText(b.x, b.y, `LİDER GEMİ İMHA EDİLDİ! +${bossScore}`, '#fbbf24', 24);
 
     this.spawnCollectible(b.x - 40, b.y, 'WEAPON_ORB', 'PLASMA');
-    this.spawnCollectible(b.x, b.y, 'POWER_TRIANGLE');
+    this.spawnCollectible(b.x, b.y, 'HEALTH');
     this.spawnCollectible(b.x + 40, b.y, 'SHIELD');
 
     // Clean all asteroids and spawn finish line
@@ -1102,13 +1131,13 @@ export class GameEngine {
   private handleDrops(x: number, y: number, _astType: AsteroidType) {
     const rand = Math.random();
 
-    if (rand < 0.22) {
+    if (rand < 0.055) {
       this.spawnCollectible(x, y, 'POWER_TRIANGLE');
-    } else if (rand < 0.32) {
+    } else if (rand < 0.16) {
       const weaponOptions: WeaponType[] = ['DOUBLE', 'TRIPLE', 'SPREAD', 'PLASMA', 'BEAM'];
       const picked = weaponOptions[Math.floor(Math.random() * weaponOptions.length)];
       this.spawnCollectible(x, y, 'WEAPON_ORB', picked);
-    } else if (rand < 0.38) {
+    } else if (rand < 0.23) {
       const specials: CollectibleType[] = ['SHIELD', 'MAGNET', 'BOMB', 'HEALTH'];
       const picked = specials[Math.floor(Math.random() * specials.length)];
       this.spawnCollectible(x, y, picked);
@@ -1158,9 +1187,9 @@ export class GameEngine {
         this.spawnFloatingText(this.player.x, this.player.y - 40, 'MAKS GÜÇ! +250', '#facc15', 18);
       }
     } else if (c.type === 'SHIELD') {
-      this.player.shieldTime = 8.0;
+      this.player.shieldTime = 20.0;
       soundManager.playPickupSpecial();
-      this.spawnFloatingText(this.player.x, this.player.y - 40, 'KALKAN AKTİF!', '#38bdf8', 18);
+      this.spawnFloatingText(this.player.x, this.player.y - 40, 'KALKAN AKTİF (20 SN)! 🛡️', '#38bdf8', 18);
     } else if (c.type === 'MAGNET') {
       this.player.magnetTime = 10.0;
       soundManager.playPickupSpecial();
@@ -1171,11 +1200,15 @@ export class GameEngine {
       this.spawnFloatingText(this.player.x, this.player.y - 40, 'MEGA BOMBA!', '#f97316', 22);
       this.triggerChainExplosion(this.width / 2, this.height / 2, this.width * 0.7);
     } else if (c.type === 'HEALTH') {
-      if (this.player.lives < this.player.maxLives) {
+      if (this.player.lives < 5) {
         this.player.lives++;
+        soundManager.playPickupSpecial();
+        this.spawnFloatingText(this.player.x, this.player.y - 40, `+1 CAN EKLENDİ! ❤ (${this.player.lives}/5)`, '#22c55e', 20);
+      } else {
+        this.player.score += 500;
+        soundManager.playPickupSpecial();
+        this.spawnFloatingText(this.player.x, this.player.y - 40, 'MAKSİMUM CAN! +500 PUAN', '#22c55e', 18);
       }
-      soundManager.playPickupSpecial();
-      this.spawnFloatingText(this.player.x, this.player.y - 40, 'CAN YENİLENDİ! ❤', '#22c55e', 18);
     }
 
     this.spawnHitParticles(c.x, c.y, c.color, 12);
@@ -1183,10 +1216,11 @@ export class GameEngine {
 
   private damagePlayer() {
     if (this.player.shieldTime > 0) {
-      this.player.shieldTime = 0;
+      // Shield protects the player for 20s and absorbs hits without breaking in a single hit
       soundManager.playPickupSpecial();
-      this.spawnFloatingText(this.player.x, this.player.y - 30, 'KALKAN KIRILDI!', '#38bdf8', 18);
-      this.player.invulnerableTime = 1.2;
+      this.spawnHitParticles(this.player.x, this.player.y, '#38bdf8', 10);
+      this.spawnFloatingText(this.player.x, this.player.y - 30, 'KALKAN KORUDU!', '#38bdf8', 16);
+      this.player.invulnerableTime = 0.5;
       return;
     }
 
@@ -1289,8 +1323,8 @@ export class GameEngine {
     this.isWarping = false;
     this.levelTimer = 0;
 
-    // Reward player +1 life on completing a level
-    if (this.player.lives < this.player.maxLives) {
+    // Reward player +1 life on completing a level (up to 5)
+    if (this.player.lives < 5) {
       this.player.lives++;
     }
 

@@ -1,8 +1,10 @@
 import React from 'react';
-import { Play, Grid, HelpCircle, Settings as SettingsIcon, Sparkles } from 'lucide-react';
+import { Play, Grid, HelpCircle, Settings as SettingsIcon, Sparkles, Maximize2, Minimize2 } from 'lucide-react';
 
 interface MainMenuProps {
   unlockedLevel: number;
+  isFullscreen?: boolean;
+  onToggleFullscreen?: () => void;
   onPlay: () => void;
   onLevelSelect: () => void;
   onHowToPlay: () => void;
@@ -11,52 +13,86 @@ interface MainMenuProps {
 
 export const MainMenu: React.FC<MainMenuProps> = ({
   unlockedLevel,
+  isFullscreen,
+  onToggleFullscreen,
   onPlay,
   onLevelSelect,
   onHowToPlay,
   onSettings,
 }) => {
   return (
-    <div className="relative w-full h-full flex flex-col items-center justify-between p-6 md:p-12 overflow-hidden bg-gradient-to-b from-slate-950 via-sky-950 to-slate-950 select-none">
+    <div className="relative w-full h-full min-h-[100dvh] flex flex-col items-center justify-between p-4 sm:p-6 md:p-12 overflow-y-auto bg-gradient-to-b from-slate-950 via-sky-950 to-slate-950 select-none">
       {/* Animated Deep Space Ambient Elements */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         {/* Soft Nebula Glows */}
-        <div className="absolute top-1/4 left-1/3 w-96 h-96 bg-sky-500/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/3 right-1/4 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl" />
+        <div className="absolute top-1/4 left-1/3 w-72 sm:w-96 h-72 sm:h-96 bg-sky-500/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/3 right-1/4 w-60 sm:w-80 h-60 sm:h-80 bg-purple-500/10 rounded-full blur-3xl" />
 
         {/* Decorative Floating Planet */}
-        <div className="absolute -top-16 -right-16 w-64 h-64 rounded-full bg-gradient-to-br from-sky-400 via-indigo-600 to-slate-900 border border-sky-400/30 shadow-2xl opacity-80 animate-pulse" />
+        <div className="absolute -top-16 -right-16 w-48 sm:w-64 h-48 sm:h-64 rounded-full bg-gradient-to-br from-sky-400 via-indigo-600 to-slate-900 border border-sky-400/30 shadow-2xl opacity-60 sm:opacity-80 animate-pulse" />
       </div>
 
       {/* Top Bar / Brand header */}
-      <div className="relative z-10 flex items-center justify-between w-full max-w-4xl">
-        <div className="flex items-center gap-2 text-sky-400 text-sm font-semibold tracking-wider uppercase">
-          <Sparkles className="w-4 h-4" />
+      <div className="relative z-10 flex items-center justify-between w-full max-w-4xl pt-1">
+        <div className="flex items-center gap-1.5 sm:gap-2 text-sky-400 text-xs sm:text-sm font-semibold tracking-wider uppercase">
+          <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           <span>Uzay Macerası</span>
         </div>
-        <button
-          onClick={onSettings}
-          className="p-2.5 bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white rounded-xl border border-slate-700/60 shadow-lg transition-colors cursor-pointer"
-          aria-label="Ayarlar"
-        >
-          <SettingsIcon className="w-5 h-5" />
-        </button>
+
+        <div className="flex items-center gap-2">
+          {onToggleFullscreen && (
+            <button
+              onClick={onToggleFullscreen}
+              className="p-2 sm:p-2.5 bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white rounded-xl border border-slate-700/60 shadow-lg transition-all active:scale-95 cursor-pointer"
+              aria-label="Tam Ekran"
+              title="Tam Ekran"
+            >
+              {isFullscreen ? (
+                <Minimize2 className="w-4 h-4 sm:w-5 sm:h-5" />
+              ) : (
+                <Maximize2 className="w-4 h-4 sm:w-5 sm:h-5" />
+              )}
+            </button>
+          )}
+
+          <button
+            onClick={onSettings}
+            className="p-2 sm:p-2.5 bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white rounded-xl border border-slate-700/60 shadow-lg transition-all active:scale-95 cursor-pointer"
+            aria-label="Ayarlar"
+            title="Ayarlar"
+          >
+            <SettingsIcon className="w-4 h-4 sm:w-5 sm:h-5" />
+          </button>
+        </div>
       </div>
 
       {/* Main Center: Game Logo & Hero Spaceship Illustration */}
-      <div className="relative z-10 flex flex-col items-center text-center my-auto max-w-2xl">
-        {/* Cartoon Hero Spaceship Vector Illustration with Idle Floating Animation */}
-        <div className="relative mb-6 animate-bounce" style={{ animationDuration: '3.5s' }}>
-          <svg width="140" height="140" viewBox="0 0 100 100" className="drop-shadow-[0_10px_25px_rgba(56,189,248,0.4)]">
+      <div className="relative z-10 flex flex-col items-center text-center my-auto py-4 max-w-2xl">
+        {/* Cartoon Hero Spaceship Vector Illustration */}
+        <div className="relative mb-3 sm:mb-6 animate-bounce" style={{ animationDuration: '3.5s' }}>
+          <svg
+            viewBox="0 0 100 100"
+            className="w-24 h-24 sm:w-32 sm:h-32 md:w-36 md:h-36 drop-shadow-[0_10px_25px_rgba(56,189,248,0.4)]"
+          >
             {/* Engine Flame */}
             <path d="M42 75 Q50 98 58 75 Z" fill="url(#mainFlameGrad)" />
             {/* Wings */}
-            <path d="M50 15 L88 65 L72 75 L50 70 L28 75 L12 65 Z" fill="url(#mainWingGrad)" stroke="#bae6fd" strokeWidth="2" />
+            <path
+              d="M50 15 L88 65 L72 75 L50 70 L28 75 L12 65 Z"
+              fill="url(#mainWingGrad)"
+              stroke="#bae6fd"
+              strokeWidth="2"
+            />
             {/* Wing Accents */}
             <polygon points="18,65 32,58 35,66 22,70" fill="#f59e0b" />
             <polygon points="82,65 68,58 65,66 78,70" fill="#f59e0b" />
             {/* Hull */}
-            <path d="M50 10 Q68 40 50 72 Q32 40 50 10 Z" fill="url(#mainHullGrad)" stroke="#cbd5e1" strokeWidth="2" />
+            <path
+              d="M50 10 Q68 40 50 72 Q32 40 50 10 Z"
+              fill="url(#mainHullGrad)"
+              stroke="#cbd5e1"
+              strokeWidth="2"
+            />
             {/* Cockpit Glass */}
             <ellipse cx="50" cy="38" rx="8" ry="16" fill="url(#mainGlassGrad)" />
             <ellipse cx="48" cy="34" rx="3" ry="8" fill="rgba(255,255,255,0.8)" />
@@ -87,20 +123,20 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         </div>
 
         {/* Title & Subtitle */}
-        <h1 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-sky-300 via-indigo-200 to-pink-300 drop-shadow-md mb-2">
+        <h1 className="text-3xl sm:text-5xl md:text-6xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-sky-300 via-indigo-200 to-pink-300 drop-shadow-md mb-1.5 sm:mb-2">
           GEZEGENLER ARASI
         </h1>
-        <p className="text-sm sm:text-base md:text-lg font-medium text-sky-200/90 tracking-wide max-w-md">
+        <p className="text-xs sm:text-base md:text-lg font-medium text-sky-200/90 tracking-wide max-w-md px-2">
           Galaksinin son yolculuğu başlıyor!
         </p>
       </div>
 
       {/* Action Buttons */}
-      <div className="relative z-10 flex flex-col sm:flex-row items-center justify-center gap-3.5 w-full max-w-xl pb-4">
+      <div className="relative z-10 flex flex-col sm:flex-row items-center justify-center gap-2.5 sm:gap-3.5 w-full max-w-xl pb-2 sm:pb-4">
         {/* Primary Play Button */}
         <button
           onClick={onPlay}
-          className="w-full sm:w-auto px-8 py-3.5 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-extrabold text-base md:text-lg rounded-2xl shadow-xl shadow-sky-500/25 border border-sky-300/40 hover:scale-105 active:scale-95 transition-all duration-150 flex items-center justify-center gap-2 cursor-pointer"
+          className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-3.5 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-extrabold text-base md:text-lg rounded-2xl shadow-xl shadow-sky-500/25 border border-sky-300/40 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer"
         >
           <Play className="w-5 h-5 fill-white" />
           <span>OYNA (BÖLÜM {unlockedLevel})</span>
@@ -109,18 +145,18 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         {/* Level Select */}
         <button
           onClick={onLevelSelect}
-          className="w-full sm:w-auto px-6 py-3.5 bg-slate-900/90 hover:bg-slate-800 text-slate-200 hover:text-white font-bold text-sm md:text-base rounded-2xl border border-slate-700 shadow-lg hover:scale-105 active:scale-95 transition-all duration-150 flex items-center justify-center gap-2 cursor-pointer"
+          className="w-full sm:w-auto px-5 sm:px-6 py-3 sm:py-3.5 bg-slate-900/90 hover:bg-slate-800 text-slate-200 hover:text-white font-bold text-sm md:text-base rounded-2xl border border-slate-700 shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer"
         >
-          <Grid className="w-5 h-5 text-sky-400" />
+          <Grid className="w-4 h-4 sm:w-5 sm:h-5 text-sky-400" />
           <span>SEVİYE SEÇ</span>
         </button>
 
         {/* How to play */}
         <button
           onClick={onHowToPlay}
-          className="w-full sm:w-auto px-6 py-3.5 bg-slate-900/90 hover:bg-slate-800 text-slate-200 hover:text-white font-bold text-sm md:text-base rounded-2xl border border-slate-700 shadow-lg hover:scale-105 active:scale-95 transition-all duration-150 flex items-center justify-center gap-2 cursor-pointer"
+          className="w-full sm:w-auto px-5 sm:px-6 py-3 sm:py-3.5 bg-slate-900/90 hover:bg-slate-800 text-slate-200 hover:text-white font-bold text-sm md:text-base rounded-2xl border border-slate-700 shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer"
         >
-          <HelpCircle className="w-5 h-5 text-amber-400" />
+          <HelpCircle className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" />
           <span>NASIL OYNANIR?</span>
         </button>
       </div>

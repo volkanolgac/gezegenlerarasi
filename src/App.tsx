@@ -15,7 +15,6 @@ import { HowToPlayModal } from './components/HowToPlayModal';
 import { LevelClearModal } from './components/LevelClearModal';
 import { GameOverModal } from './components/GameOverModal';
 import { VictoryModal } from './components/VictoryModal';
-import { OrientationWarning } from './components/OrientationWarning';
 import { DebugPanel } from './components/DebugPanel';
 
 const SAVE_STORAGE_KEY = 'gezegenler-arasi-save-v1';
@@ -60,6 +59,7 @@ export default function App() {
   const [gameState, setGameState] = useState<GameState>('MAIN_MENU');
   const [currentLevelId, setCurrentLevelId] = useState<number>(saveData.unlockedLevel || 1);
   const [previousState, setPreviousState] = useState<GameState>('MAIN_MENU');
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Stats / Results
   const [levelClearStats, setLevelClearStats] = useState<{
@@ -83,6 +83,27 @@ export default function App() {
   const [tutorialHint, setTutorialHint] = useState<string | null>(null);
   const [fps, setFps] = useState(60);
   const [debugMode, setDebugMode] = useState(false);
+
+  // Check Fullscreen support and sync state
+  const toggleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+    };
+  }, []);
 
   // Check URL params for debug
   useEffect(() => {
@@ -141,8 +162,8 @@ export default function App() {
       const canvas = canvasRef.current;
       if (!canvas) return;
 
-      const width = canvas.width;
-      const height = canvas.height;
+      const width = window.innerWidth;
+      const height = window.innerHeight;
 
       const engine = new GameEngine(width, height, config, saveData.settings, {
         onLevelComplete: (stats) => {
@@ -213,9 +234,9 @@ export default function App() {
 
       // Level 1 tutorial prompts
       if (levelId === 1 && !carriedState) {
-        setTutorialHint('Uzay gemini hareket ettirmek için fareyi oynat.');
+        setTutorialHint('Uzay gemini hareket ettirmek için ekrana dokun veya fareyi oynat.');
         setTimeout(() => {
-          setTutorialHint('Ateş etmek için fareyi basılı tut veya BOŞLUK tuşuna bas!');
+          setTutorialHint('Ateş etmek için basılı tut veya BOŞLUK tuşuna bas!');
           setTimeout(() => {
             setTutorialHint(null);
           }, 4000);
@@ -246,7 +267,10 @@ export default function App() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const renderer = new GameRenderer(ctx, canvas.width, canvas.height);
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+
+    const renderer = new GameRenderer(ctx, width, height);
     rendererRef.current = renderer;
 
     let animId = 0;
@@ -288,7 +312,7 @@ export default function App() {
       renderer.renderBackground(region, stars, warpSpeed, time / 1000);
 
       if (engine) {
-        // 2. Checkpoint Finish Line (Hiper Geçiş Çizgisi)
+        // 2. Checkpoint Finish Line
         renderer.renderFinishLine(engine.finishLine, time / 1000);
 
         // 3. Projectiles
@@ -303,10 +327,10 @@ export default function App() {
         // 6. Enemies
         renderer.renderEnemies(engine.enemies, time / 1000);
 
-        // 7. Boss (Rival Spaceships & Major Bosses)
+        // 7. Boss
         renderer.renderBoss(engine.boss, time / 1000);
 
-        // 8. Player (with hyperspace plume when crossing line)
+        // 8. Player
         renderer.renderPlayer(engine.player, warpSpeed, time / 1000);
 
         // 9. Particles
@@ -328,7 +352,7 @@ export default function App() {
     };
   }, [gameState, currentLevelConfig]);
 
-  // Window Resize & Canvas Scaling
+  // Window Resize & Canvas Scaling for All Screen Sizes
   useEffect(() => {
     const handleResize = () => {
       const canvas = canvasRef.current;
@@ -348,7 +372,11 @@ export default function App() {
 
     handleResize();
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+    };
   }, []);
 
   // Ambient music lifecycle
@@ -357,23 +385,39 @@ export default function App() {
     return () => soundManager.stopAmbientMusic();
   }, []);
 
-  // Pointer & Keyboard Controls
+  // Pointer, Touch & Keyboard Controls
   useEffect(() => {
     const handlePointerMove = (e: PointerEvent) => {
       if (!engineRef.current || gameState !== 'PLAYING') return;
       const canvas = canvasRef.current;
       if (!canvas) return;
       const rect = canvas.getBoundingClientRect();
-      engineRef.current.updatePointerTarget(e.clientX, e.clientY, rect);
+      const isTouch = e.pointerType === 'touch';
+      engineRef.current.updatePointerTarget(e.clientX, e.clientY, rect, isTouch);
+      // Auto-fire while moving finger on touch screens
+      if (isTouch) {
+        engineRef.current.setFiring(true);
+      }
     };
 
     const handlePointerDown = (e: PointerEvent) => {
       if (e.target !== canvasRef.current) return;
       if (!engineRef.current || gameState !== 'PLAYING') return;
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const rect = canvas.getBoundingClientRect();
+        const isTouch = e.pointerType === 'touch';
+        engineRef.current.updatePointerTarget(e.clientX, e.clientY, rect, isTouch);
+      }
       engineRef.current.setFiring(true);
     };
 
     const handlePointerUp = () => {
+      if (!engineRef.current) return;
+      engineRef.current.setFiring(false);
+    };
+
+    const handlePointerCancel = () => {
       if (!engineRef.current) return;
       engineRef.current.setFiring(false);
     };
@@ -384,6 +428,8 @@ export default function App() {
         if (engineRef.current && gameState === 'PLAYING') {
           engineRef.current.setFiring(true);
         }
+      } else if (e.code === 'KeyF') {
+        toggleFullscreen();
       } else if (e.code === 'Escape') {
         e.preventDefault();
         if (gameState === 'PLAYING') {
@@ -408,6 +454,7 @@ export default function App() {
     window.addEventListener('pointermove', handlePointerMove);
     window.addEventListener('pointerdown', handlePointerDown);
     window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerCancel);
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
 
@@ -415,13 +462,14 @@ export default function App() {
       window.removeEventListener('pointermove', handlePointerMove);
       window.removeEventListener('pointerdown', handlePointerDown);
       window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerCancel);
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [gameState]);
+  }, [gameState, toggleFullscreen]);
 
   return (
-    <main className="relative w-screen h-screen overflow-hidden bg-slate-950 font-sans text-slate-100 select-none">
+    <main className="relative w-screen h-screen min-h-[100dvh] overflow-hidden bg-slate-950 font-sans text-slate-100 select-none">
       {/* Background Canvas for High Performance 60 FPS Rendering */}
       <canvas
         ref={canvasRef}
@@ -438,6 +486,8 @@ export default function App() {
           objectiveCurrent={objectiveCurrent}
           objectiveTarget={objectiveTarget}
           showTutorialHint={tutorialHint}
+          isFullscreen={isFullscreen}
+          onToggleFullscreen={toggleFullscreen}
           onPause={() => {
             engineRef.current?.pause();
             setGameState('PAUSED');
@@ -449,6 +499,8 @@ export default function App() {
       {gameState === 'MAIN_MENU' && (
         <MainMenu
           unlockedLevel={saveData.unlockedLevel}
+          isFullscreen={isFullscreen}
+          onToggleFullscreen={toggleFullscreen}
           onPlay={() => launchLevelWithBriefing(saveData.unlockedLevel)}
           onLevelSelect={() => setGameState('LEVEL_SELECT')}
           onHowToPlay={() => setGameState('HOW_TO_PLAY')}
@@ -491,6 +543,8 @@ export default function App() {
             setGameState('SETTINGS');
           }}
           onHome={() => setGameState('MAIN_MENU')}
+          isFullscreen={isFullscreen}
+          onToggleFullscreen={toggleFullscreen}
         />
       )}
 
@@ -500,6 +554,8 @@ export default function App() {
           settings={saveData.settings}
           onUpdateSettings={handleUpdateSettings}
           onClose={() => setGameState(previousState)}
+          isFullscreen={isFullscreen}
+          onToggleFullscreen={toggleFullscreen}
           onResetProgress={() => {
             persistSaveData(() => DEFAULT_SAVE_DATA);
             setCurrentLevelId(1);
@@ -513,7 +569,7 @@ export default function App() {
         <HowToPlayModal onClose={() => setGameState('MAIN_MENU')} />
       )}
 
-      {/* LEVEL CLEAR MODAL (Fallback/Manual Navigation) */}
+      {/* LEVEL CLEAR MODAL */}
       {gameState === 'LEVEL_CLEAR' && levelClearStats && (
         <LevelClearModal
           levelConfig={currentLevelConfig}
@@ -547,9 +603,6 @@ export default function App() {
           onHome={() => setGameState('MAIN_MENU')}
         />
       )}
-
-      {/* ORIENTATION PROMPT FOR MOBILE PORTRAIT */}
-      <OrientationWarning />
 
       {/* DEVELOPER DEBUG PANEL */}
       {debugMode && <DebugPanel engine={engineRef.current} fps={fps} />}

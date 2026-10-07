@@ -83,7 +83,7 @@ export const LEVELS: LevelConfig[] = [
     },
     asteroidRate: 1.1,
     asteroidSpeedMultiplier: 0.85,
-    enemySpawnRate: 0.35,
+    enemySpawnRate: 0.24,
     allowedAsteroids: ['SMALL', 'MEDIUM'],
     allowedEnemies: ['SCOUT'],
     hasBoss: true,

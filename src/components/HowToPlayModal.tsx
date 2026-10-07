@@ -122,9 +122,9 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({ onClose }) => {
               <div className="flex items-start gap-3 bg-slate-800/70 p-3.5 rounded-xl border border-slate-700">
                 <Zap className="w-5 h-5 text-rose-400 shrink-0" />
                 <div>
-                  <div className="font-bold text-white text-xs">Mega Bomba & Can</div>
+                  <div className="font-bold text-white text-xs">Mega Bomba & Ekstra Can</div>
                   <div className="text-xs text-slate-400">
-                    Bomba tüm küçük asteroitleri patlatır. Kalpler canını yeniler.
+                    Bomba tüm küçük asteroitleri patlatır. Kalpler can sayını 3'ten 5'e kadar yükseltir.
                   </div>
                 </div>
               </div>
