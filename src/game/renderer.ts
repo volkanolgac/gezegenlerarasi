@@ -175,11 +175,15 @@ export class GameRenderer {
 
   // 3. Render Spaceship "Nova"
   public renderPlayer(player: PlayerState, warpSpeedMultiplier: number, time: number) {
+    if (player.isDestroyed) {
+      return;
+    }
+
     const ctx = this.ctx;
     const { x, y, tilt, invulnerableTime, shieldTime, magnetTime } = player;
 
-    // Invulnerability Flashing
-    if (invulnerableTime > 0 && Math.floor(time * 20) % 2 === 0) {
+    // Invulnerability Flashing (do not flicker if shielded)
+    if (invulnerableTime > 0 && shieldTime <= 0 && Math.floor(time * 20) % 2 === 0) {
       return;
     }
 

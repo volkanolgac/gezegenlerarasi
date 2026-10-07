@@ -80,6 +80,8 @@ export class GameEngine {
   private objectiveCompleted = false;
   private bossSpawned = false;
   private warpTimer = 0;
+  private gameOverDelayTimer = 0;
+  private isGameOverTriggered = false;
 
   constructor(
     width: number,
@@ -219,6 +221,7 @@ export class GameEngine {
   }
 
   public updatePointerTarget(clientX: number, clientY: number, rect: DOMRect, isTouch = false) {
+    if (this.player.isDestroyed) return;
     const scaleX = this.width / rect.width;
     const scaleY = this.height / rect.height;
     const x = (clientX - rect.left) * scaleX;
@@ -264,28 +267,78 @@ export class GameEngine {
       this.warpSpeedMultiplier = Math.max(1.0, this.warpSpeedMultiplier - dt * 4.0);
     }
 
-    // Player Movement
-    const smoothing = Math.min(1.0, 14 * dt * this.settings.mouseSensitivity);
-    const prevX = this.player.x;
-    this.player.x += (this.player.targetX - this.player.x) * smoothing;
-    this.player.y += (this.player.targetY - this.player.y) * smoothing;
-
-    const targetTilt = Math.max(-0.35, Math.min(0.35, (this.player.x - prevX) * 0.05));
-    this.player.tilt += (targetTilt - this.player.tilt) * Math.min(1.0, 12 * dt);
-
-    if (this.player.invulnerableTime > 0) this.player.invulnerableTime -= dt;
-    if (this.player.shieldTime > 0) this.player.shieldTime -= dt;
-    if (this.player.magnetTime > 0) this.player.magnetTime -= dt;
-
-    if (this.player.combo > 0) {
-      this.player.comboTimer -= dt;
-      if (this.player.comboTimer <= 0) {
-        this.player.combo = 0;
+    // Player State Management: Destroyed, Respawning from Bottom, or Active
+    if (this.player.isDestroyed) {
+      // If game over, continue running space for 2 seconds without spaceship, then show Game Over
+      if (this.gameOverDelayTimer > 0) {
+        this.gameOverDelayTimer -= dt;
+        if (this.gameOverDelayTimer <= 0 && !this.isGameOverTriggered) {
+          this.isGameOverTriggered = true;
+          this.handleGameOver();
+        }
+      } else if (this.player.lives > 0 && this.player.respawnTimer !== undefined) {
+        // Delay before ship respawns from bottom
+        this.player.respawnTimer -= dt;
+        if (this.player.respawnTimer <= 0) {
+          this.player.isDestroyed = false;
+          this.player.isRespawning = true;
+          this.player.x = this.width / 2;
+          this.player.y = this.height + 80;
+          this.player.targetX = this.width / 2;
+          this.player.targetY = this.height * 0.8;
+          this.player.shieldTime = 7.0; // 7 seconds protective shield!
+          this.player.invulnerableTime = 7.0;
+          soundManager.playRespawn();
+          this.spawnFloatingText(
+            this.width / 2,
+            this.height * 0.72,
+            '🛡️ 7 SANİYE KORUMA KALKANI AKTİF!',
+            '#38bdf8',
+            22
+          );
+        }
       }
-    }
+    } else if (this.player.isRespawning) {
+      // Spaceship smoothly flies up into the screen from the bottom
+      const riseSpeed = 360 * dt;
+      this.player.y -= riseSpeed;
+      this.player.x += (this.player.targetX - this.player.x) * Math.min(1.0, 8 * dt);
 
-    if (this.isFiring && !this.isWarping) {
-      this.handlePlayerShooting(now);
+      // Thruster trail particles during entrance
+      this.spawnHitParticles(this.player.x, this.player.y + 22, '#38bdf8', 2);
+
+      if (this.player.y <= this.height * 0.8) {
+        this.player.y = this.height * 0.8;
+        this.player.isRespawning = false;
+      }
+
+      if (this.player.invulnerableTime > 0) this.player.invulnerableTime -= dt;
+      if (this.player.shieldTime > 0) this.player.shieldTime -= dt;
+      if (this.player.magnetTime > 0) this.player.magnetTime -= dt;
+    } else {
+      // Normal Player Movement
+      const smoothing = Math.min(1.0, 14 * dt * this.settings.mouseSensitivity);
+      const prevX = this.player.x;
+      this.player.x += (this.player.targetX - this.player.x) * smoothing;
+      this.player.y += (this.player.targetY - this.player.y) * smoothing;
+
+      const targetTilt = Math.max(-0.35, Math.min(0.35, (this.player.x - prevX) * 0.05));
+      this.player.tilt += (targetTilt - this.player.tilt) * Math.min(1.0, 12 * dt);
+
+      if (this.player.invulnerableTime > 0) this.player.invulnerableTime -= dt;
+      if (this.player.shieldTime > 0) this.player.shieldTime -= dt;
+      if (this.player.magnetTime > 0) this.player.magnetTime -= dt;
+
+      if (this.player.combo > 0) {
+        this.player.comboTimer -= dt;
+        if (this.player.comboTimer <= 0) {
+          this.player.combo = 0;
+        }
+      }
+
+      if (this.isFiring && !this.isWarping) {
+        this.handlePlayerShooting(now);
+      }
     }
 
     // Spawners (only if objective not yet complete and finish line not active)
@@ -929,20 +982,22 @@ export class GameEngine {
     }
 
     // Player vs Collectibles
-    for (let ci = this.collectibles.length - 1; ci >= 0; ci--) {
-      const c = this.collectibles[ci];
-      const dx = this.player.x - c.x;
-      const dy = this.player.y - c.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
+    if (!this.player.isDestroyed) {
+      for (let ci = this.collectibles.length - 1; ci >= 0; ci--) {
+        const c = this.collectibles[ci];
+        const dx = this.player.x - c.x;
+        const dy = this.player.y - c.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
 
-      if (dist < this.player.radius + c.radius) {
-        this.collectItem(c);
-        this.collectibles.splice(ci, 1);
+        if (dist < this.player.radius + c.radius) {
+          this.collectItem(c);
+          this.collectibles.splice(ci, 1);
+        }
       }
     }
 
     // Player vs Asteroids / Enemies / Bullets
-    if (this.player.invulnerableTime <= 0 && !this.isWarping) {
+    if (this.player.invulnerableTime <= 0 && !this.isWarping && !this.player.isDestroyed && !this.player.isRespawning) {
       for (let ai = this.asteroids.length - 1; ai >= 0; ai--) {
         const ast = this.asteroids[ai];
         const dx = this.player.x - ast.x;
@@ -1215,27 +1270,37 @@ export class GameEngine {
   }
 
   private damagePlayer() {
-    if (this.player.shieldTime > 0) {
-      // Shield protects the player for 20s and absorbs hits without breaking in a single hit
-      soundManager.playPickupSpecial();
-      this.spawnHitParticles(this.player.x, this.player.y, '#38bdf8', 10);
-      this.spawnFloatingText(this.player.x, this.player.y - 30, 'KALKAN KORUDU!', '#38bdf8', 16);
-      this.player.invulnerableTime = 0.5;
+    if (this.player.isDestroyed || this.player.invulnerableTime > 0 || this.isWarping) {
       return;
     }
 
-    this.player.lives--;
+    if (this.player.shieldTime > 0) {
+      // Shield protects the player and absorbs hits without breaking in a single hit
+      soundManager.playPickupSpecial();
+      this.spawnHitParticles(this.player.x, this.player.y, '#38bdf8', 12);
+      this.spawnFloatingText(this.player.x, this.player.y - 30, 'KALKAN KORUDU!', '#38bdf8', 16);
+      this.player.invulnerableTime = 0.6;
+      return;
+    }
+
+    // Deduct one heart/life
+    this.player.lives = Math.max(0, this.player.lives - 1);
     this.player.damageTaken++;
     this.player.combo = 0;
-    this.player.invulnerableTime = 2.0;
-    soundManager.playDamage();
-    this.screenShakeIntensity = 18;
+    this.player.isDestroyed = true;
+    this.screenShakeIntensity = 28;
 
-    this.spawnExplosion(this.player.x, this.player.y, '#ef4444', 25);
-    this.spawnFloatingText(this.player.x, this.player.y - 40, 'HASAR ALINDI!', '#ef4444', 20);
+    // Trigger powerful ship explosion sound and multi-layered particle effects
+    soundManager.playShipExplosion();
+    this.spawnShipDestructionExplosion(this.player.x, this.player.y);
+    this.spawnFloatingText(this.player.x, this.player.y - 40, 'GEMİ PATLADI!', '#ef4444', 22);
 
     if (this.player.lives <= 0) {
-      this.handleGameOver();
+      // After final explosion, game continues running for 2 seconds without spaceship, then shows game over popup
+      this.gameOverDelayTimer = 2.0;
+    } else {
+      // Delay for 1.0 second during which ship is completely gone, then respawns from bottom with 7s shield
+      this.player.respawnTimer = 1.0;
     }
   }
 
@@ -1270,6 +1335,12 @@ export class GameEngine {
         break;
     }
 
+    // Auto-spawn boss for DEFEAT_BOSS objective levels (Level 5, 10, 15, 20)
+    // Ensures boss appears reliably during seamless progression after the level intro
+    if (obj.type === 'DEFEAT_BOSS' && !this.bossSpawned && !this.finishLine && this.isRunning && this.levelTimer >= 0.8) {
+      this.spawnRivalBoss();
+    }
+
     this.objectiveProgress = current;
     this.callbacks.onObjectiveUpdate(current, obj.target);
 
@@ -1277,8 +1348,8 @@ export class GameEngine {
     if (current >= obj.target && !this.objectiveCompleted && this.isRunning) {
       this.objectiveCompleted = true;
 
-      // If boss has not been spawned yet, spawn the rival boss spaceship now!
-      if (!this.bossSpawned) {
+      // If boss has not been spawned yet in a level with a boss, spawn the rival boss spaceship now!
+      if (this.levelConfig.hasBoss && !this.bossSpawned) {
         this.spawnRivalBoss();
       } else if (!this.finishLine && !this.boss) {
         this.spawnFinishLine();
@@ -1349,6 +1420,72 @@ export class GameEngine {
       asteroidsDestroyed: this.player.asteroidsDestroyed,
       levelReached: this.levelConfig.id,
     });
+  }
+
+  private spawnShipDestructionExplosion(x: number, y: number) {
+    // 1. Shockwave rings
+    this.particles.push({
+      x,
+      y,
+      vx: 0,
+      vy: 0,
+      radius: 40,
+      color: '#ef4444',
+      alpha: 1,
+      life: 0,
+      maxLife: 0.6,
+      shape: 'ring',
+    });
+    this.particles.push({
+      x,
+      y,
+      vx: 0,
+      vy: 0,
+      radius: 25,
+      color: '#38bdf8',
+      alpha: 1,
+      life: 0,
+      maxLife: 0.5,
+      shape: 'ring',
+    });
+
+    // 2. Fiery and electric debris sparks
+    for (let i = 0; i < 40; i++) {
+      const angle = (Math.PI * 2 * i) / 40 + (Math.random() - 0.5) * 0.3;
+      const speed = 80 + Math.random() * 220;
+      const colors = ['#ef4444', '#f59e0b', '#fbbf24', '#38bdf8', '#ffffff'];
+      const color = colors[Math.floor(Math.random() * colors.length)];
+      this.particles.push({
+        x,
+        y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        radius: 3 + Math.random() * 4,
+        color,
+        alpha: 1,
+        life: 0,
+        maxLife: 0.5 + Math.random() * 0.4,
+        shape: Math.random() < 0.6 ? 'spark' : 'circle',
+      });
+    }
+
+    // 3. Smoke puffs
+    for (let i = 0; i < 15; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 25 + Math.random() * 70;
+      this.particles.push({
+        x: x + (Math.random() - 0.5) * 15,
+        y: y + (Math.random() - 0.5) * 15,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        radius: 6 + Math.random() * 8,
+        color: '#64748b',
+        alpha: 0.8,
+        life: 0,
+        maxLife: 0.8 + Math.random() * 0.4,
+        shape: 'circle',
+      });
+    }
   }
 
   private spawnHitParticles(x: number, y: number, color: string, count: number) {

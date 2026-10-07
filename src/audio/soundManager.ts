@@ -275,6 +275,56 @@ class SoundManager {
     osc.stop(t + 0.25);
   }
 
+  public playShipExplosion() {
+    this.initContext();
+    if (!this.ctx || !this.sfxGain || this.sfxVolume <= 0) return;
+    const t = this.ctx.currentTime;
+    // Deep heavy explosion rumble and shockwave
+    const osc1 = this.ctx.createOscillator();
+    const gain1 = this.ctx.createGain();
+    osc1.type = 'sawtooth';
+    osc1.frequency.setValueAtTime(180, t);
+    osc1.frequency.exponentialRampToValueAtTime(20, t + 0.9);
+    gain1.gain.setValueAtTime(0.7, t);
+    gain1.gain.exponentialRampToValueAtTime(0.01, t + 0.9);
+    osc1.connect(gain1);
+    gain1.connect(this.sfxGain);
+    osc1.start(t);
+    osc1.stop(t + 0.9);
+
+    const osc2 = this.ctx.createOscillator();
+    const gain2 = this.ctx.createGain();
+    osc2.type = 'triangle';
+    osc2.frequency.setValueAtTime(90, t);
+    osc2.frequency.exponentialRampToValueAtTime(25, t + 1.2);
+    gain2.gain.setValueAtTime(0.8, t);
+    gain2.gain.exponentialRampToValueAtTime(0.01, t + 1.2);
+    osc2.connect(gain2);
+    gain2.connect(this.sfxGain);
+    osc2.start(t);
+    osc2.stop(t + 1.2);
+  }
+
+  public playRespawn() {
+    this.initContext();
+    if (!this.ctx || !this.sfxGain || this.sfxVolume <= 0) return;
+    const t = this.ctx.currentTime;
+    const freqs = [220, 330, 440, 660, 880];
+    freqs.forEach((f, idx) => {
+      if (!this.ctx) return;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(f, t + idx * 0.08);
+      gain.gain.setValueAtTime(0.25, t + idx * 0.08);
+      gain.gain.exponentialRampToValueAtTime(0.01, t + idx * 0.08 + 0.2);
+      osc.connect(gain);
+      gain.connect(this.sfxGain!);
+      osc.start(t + idx * 0.08);
+      osc.stop(t + idx * 0.08 + 0.2);
+    });
+  }
+
   public playBossHit() {
     this.initContext();
     if (!this.ctx || !this.sfxGain || this.sfxVolume <= 0) return;

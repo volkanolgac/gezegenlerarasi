@@ -74,6 +74,9 @@ export interface PlayerState {
   enemiesDestroyed: number;
   crystalsCollected: number;
   damageTaken: number;
+  isDestroyed?: boolean;
+  respawnTimer?: number;
+  isRespawning?: boolean;
 }
 
 export interface Projectile {

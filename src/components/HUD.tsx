@@ -28,6 +28,18 @@ export const HUD: React.FC<HUDProps> = ({
   isFullscreen,
   onToggleFullscreen,
 }) => {
+  // Real-time synchronization loop to guarantee hearts, score, and combo update immediately
+  const [, setTick] = React.useState(0);
+  React.useEffect(() => {
+    let animId: number;
+    const loop = () => {
+      setTick((prev) => (prev + 1) % 10000);
+      animId = requestAnimationFrame(loop);
+    };
+    animId = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(animId);
+  }, []);
+
   const currentWeaponInfo = WEAPON_DEFINITIONS[player.currentWeapon];
   const objPct = Math.min(100, Math.max(0, (objectiveCurrent / (objectiveTarget || 1)) * 100));
 
