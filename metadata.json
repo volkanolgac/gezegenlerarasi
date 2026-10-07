@@ -1,0 +1,6 @@
+{
+  "name": "GEZEGENLER ARASI",
+  "description": "Galaksinin son yolculuğu başlıyor! Polished cartoon arcade space shooter, asteroit fırtınaları, silah geliştirmeleri ve 20 seviyeli galaksi serüveni.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
